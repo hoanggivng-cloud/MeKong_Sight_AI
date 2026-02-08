@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import { farmService } from '../services/farm.service';
 import { Bell, AlertTriangle, AlertCircle, CheckCircle2, Info, Loader2 } from 'lucide-react';
 
 export const Alerts: React.FC = () => {
@@ -9,8 +9,8 @@ export const Alerts: React.FC = () => {
 
     const fetchAlerts = async () => {
         try {
-            const res = await api.get('/farms/alerts/all');
-            setAlerts(res.data.data || []);
+            const data = await farmService.getAlerts();
+            setAlerts(data.data || []);
         } catch (err) {
             console.error(err);
         } finally {
@@ -24,7 +24,7 @@ export const Alerts: React.FC = () => {
 
     const acknowledgeAlert = async (id: string) => {
         try {
-            await api.put(`/farms/alerts/${id}/acknowledge`);
+            await farmService.acknowledgeAlert(id);
             fetchAlerts();
         } catch (err) {
             console.error(err);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import { aiService } from '../services/ai.service';
+import { farmService } from '../services/farm.service';
 import { Brain, FileText, Send, Image as ImageIcon, History, Loader2, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 
 export const Analysis: React.FC = () => {
@@ -14,16 +15,26 @@ export const Analysis: React.FC = () => {
 
     const fetchData = async () => {
         try {
-            // Get Farms
-            const farmRes = await api.get('/farms/my');
-            setFarms(farmRes.data.data);
-            if (farmRes.data.data.length > 0) setSelectedFarm(farmRes.data.data[0].id);
+            // Get user role
+            const userStr = localStorage.getItem('user');
+            const role = userStr ? JSON.parse(userStr).role : 'farmer';
 
-            // Get History
-            const farmsData = farmRes.data.data || [];
-            if (farmsData.length > 0) {
-                const historyRes = await api.get('/ai/analysis-requests/' + farmsData[0].id);
-                setRequests(historyRes.data.data || []);
+            // Get Farms based on role
+            let farmData;
+            if (role === 'admin') {
+                farmData = await farmService.getAllFarms();
+            } else {
+                farmData = await farmService.getMyFarms();
+            }
+
+            setFarms(farmData.data || []);
+            if (farmData.data && farmData.data.length > 0) {
+                const firstFarmId = farmData.data[0].id;
+                setSelectedFarm(firstFarmId);
+
+                // Get History for the first farm initially
+                const historyData = await aiService.getAnalysisHistory(firstFarmId);
+                setRequests(historyData.data || []);
             }
         } catch (err) {
             console.error(err);
@@ -40,10 +51,7 @@ export const Analysis: React.FC = () => {
         e.preventDefault();
         setSubmitting(true);
         try {
-            await api.post('/ai/analyze', {
-                farm_id: selectedFarm,
-                analysis_type: analysisType
-            });
+            await aiService.analyze(selectedFarm, analysisType);
             alert('Yêu cầu phân tích đã được gửi thành công!');
             fetchData();
         } catch (err) {

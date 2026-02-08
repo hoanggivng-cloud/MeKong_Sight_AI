@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bell, Shield, Smartphone, Globe, Save, Camera, Loader2, MapPin, Settings as SettingsIcon, Cpu, Navigation2 } from 'lucide-react';
+import { User, Bell, Shield, Save, Camera, Loader2, MapPin, Settings as SettingsIcon, Cpu, Navigation2 } from 'lucide-react';
 import { getProfile, updateProfile } from '../services/user.service';
-import api from '../services/api';
+import { iotService } from '../services/iot.service';
 
 export const Settings: React.FC = () => {
     const [loading, setLoading] = useState(true);
@@ -28,13 +28,6 @@ export const Settings: React.FC = () => {
             try {
                 const data = await getProfile();
                 if (data) {
-                    // Split location geometry if exists
-                    let lat = '', lng = '';
-                    if (data.location) {
-                        // Assuming PostGIS Point(lon lat) format or simple object
-                        // For now, let's look for lat/lng properties if we mapped them, 
-                        // or just placeholder if not.
-                    }
                     setProfile({
                         ...profile,
                         ...data,
@@ -44,14 +37,14 @@ export const Settings: React.FC = () => {
                 }
 
                 // Fetch devices
-                const deviceRes = await api.get('/iot/readings'); // Temporary using readings to get device names
+                const deviceData = await iotService.getDevices();
                 // In a real app, we'd have /iot/devices
-                setDevices(deviceRes.data.data.map((r: any) => r.iot_devices).filter((v: any, i: any, a: any) => a.findIndex((t: any) => t.id === v.id) === i));
+                setDevices(deviceData.data.map((r: any) => r.iot_devices).filter((v: any, i: any, a: any) => a.findIndex((t: any) => t.id === v.id) === i));
 
             } catch (err) {
                 console.error("Failed to fetch data:", err);
                 const localUser = JSON.parse(localStorage.getItem('user') || '{}');
-                setProfile(prev => ({ ...prev, ...localUser }));
+                setProfile((prev: any) => ({ ...prev, ...localUser }));
             } finally {
                 setLoading(false);
             }
@@ -66,7 +59,7 @@ export const Settings: React.FC = () => {
             const { phone_number, created_at, updated_at, id, ...updateData } = profile;
             const updated = await updateProfile(updateData);
 
-            setProfile(prev => ({ ...prev, ...updated }));
+            setProfile((prev: any) => ({ ...prev, ...updated }));
 
             // Sync with local storage
             const localUser = JSON.parse(localStorage.getItem('user') || '{}');

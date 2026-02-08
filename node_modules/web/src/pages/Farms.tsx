@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import { farmService } from '../services/farm.service';
 import { Plus, MapPin, Ruler, Droplets, X, Loader2, Settings, Trash2 } from 'lucide-react';
 
 export const Farms: React.FC = () => {
@@ -9,6 +9,13 @@ export const Farms: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [selectedFarm, setSelectedFarm] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+    const [currentSeason, setCurrentSeason] = useState<any>(null);
+    const [showSeasonForm, setShowSeasonForm] = useState(false);
+    const [seasonData, setSeasonData] = useState({
+        season_type: 'rice',
+        variety: '',
+        start_date: new Date().toISOString().split('T')[0]
+    });
 
     // Form state
     const [newFarm, setNewFarm] = useState({
@@ -19,8 +26,8 @@ export const Farms: React.FC = () => {
 
     const fetchFarms = async () => {
         try {
-            const res = await api.get('/farms/my');
-            setFarms(res.data.data);
+            const data = await farmService.getMyFarms();
+            setFarms(data.data);
         } catch (err) {
             console.error(err);
         } finally {
@@ -36,7 +43,7 @@ export const Farms: React.FC = () => {
         e.preventDefault();
         setSubmitting(true);
         try {
-            await api.post('/farms', newFarm);
+            await farmService.createFarm(newFarm);
             setShowModal(false);
             setNewFarm({ farm_name: '', area_hectares: '', farm_type: 'shrimp_rice' });
             fetchFarms();
@@ -50,8 +57,13 @@ export const Farms: React.FC = () => {
     const handleViewDetail = async (id: string) => {
         setLoadingDetail(true);
         try {
-            const res = await api.get(`/farms/${id}`);
-            setSelectedFarm(res.data.data);
+            const data = await farmService.getFarmById(id);
+            setSelectedFarm(data.data);
+
+            // Lấy thông tin mùa vụ hiện tại
+            const seasonData = await farmService.getCurrentSeason(id);
+            setCurrentSeason(seasonData.data);
+            setShowSeasonForm(false);
         } catch (err) {
             console.error(err);
         } finally {
@@ -59,10 +71,27 @@ export const Farms: React.FC = () => {
         }
     };
 
+    const handleStartSeason = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            await farmService.startSeason({
+                ...seasonData,
+                farm_id: selectedFarm.id
+            });
+            alert('Đã thiết lập mùa vụ mới thành công!');
+            handleViewDetail(selectedFarm.id);
+        } catch (err) {
+            alert('Lỗi khi thiết lập mùa vụ.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleDelete = async (id: string) => {
         if (!window.confirm('Bạn có chắc chắn muốn xóa trang trại này không? Dữ liệu không thể khôi phục.')) return;
         try {
-            await api.delete(`/farms/${id}`);
+            await farmService.deleteFarm(id);
             fetchFarms();
         } catch (err) {
             console.error(err);
@@ -239,8 +268,58 @@ export const Farms: React.FC = () => {
                         </div>
 
                         <div className="card p-4" style={{ background: 'rgba(255,255,255,0.02)', marginBottom: '2rem' }}>
-                            <h4 style={{ marginTop: 0 }}>Ghi chú gần đây</h4>
-                            <p className="text-secondary" style={{ fontSize: '0.85rem' }}>Mùa vụ hiện tại đang ở giai đoạn chuẩn bị rửa mặn. Cần theo dõi sát độ mặn từ sensor A1.</p>
+                            <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
+                                <h4 style={{ margin: 0 }}>Mùa vụ hiện tại</h4>
+                                {!showSeasonForm && (
+                                    <button
+                                        className="secondary"
+                                        style={{ fontSize: '0.7rem', padding: '4px 8px' }}
+                                        onClick={() => setShowSeasonForm(true)}
+                                    >
+                                        {currentSeason ? 'Đổi mùa vụ' : 'Thiết lập mùa'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {showSeasonForm ? (
+                                <form onSubmit={handleStartSeason}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', display: 'block', marginBottom: '0.3rem' }}>Loại hình</label>
+                                            <select
+                                                style={{ padding: '6px', fontSize: '0.8rem' }}
+                                                value={seasonData.season_type}
+                                                onChange={e => setSeasonData({ ...seasonData, season_type: e.target.value })}
+                                            >
+                                                <option value="rice">Trồng Lúa</option>
+                                                <option value="shrimp">Nuôi Tôm</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '0.7rem', display: 'block', marginBottom: '0.3rem' }}>Giống</label>
+                                            <input
+                                                style={{ padding: '6px', fontSize: '0.8rem' }}
+                                                placeholder="VD: ST25, Thẻ chân trắng"
+                                                value={seasonData.variety}
+                                                onChange={e => setSeasonData({ ...seasonData, variety: e.target.value })}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button type="submit" className="primary" style={{ flex: 1, fontSize: '0.75rem' }} disabled={submitting}>Xác nhận</button>
+                                        <button type="button" className="secondary" style={{ flex: 1, fontSize: '0.75rem' }} onClick={() => setShowSeasonForm(false)}>Hủy</button>
+                                    </div>
+                                </form>
+                            ) : currentSeason ? (
+                                <div style={{ fontSize: '0.85rem' }}>
+                                    <p>Loại: <strong>{currentSeason.season_type === 'rice' ? '🌾 Lúa' : '🦐 Tôm'}</strong></p>
+                                    <p>Giống: <strong>{currentSeason.variety}</strong></p>
+                                    <p>Ngày bắt đầu: <strong>{new Date(currentSeason.start_date).toLocaleDateString('vi-VN')}</strong></p>
+                                </div>
+                            ) : (
+                                <p className="text-secondary" style={{ fontSize: '0.85rem', textAlign: 'center' }}>Chưa thiết lập mùa vụ. Hãy thiết lập để nhận cảnh báo chính xác!</p>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem' }}>

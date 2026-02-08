@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Sprout, Users, Settings, LogOut, Waves, Bell, Brain } from 'lucide-react';
+import { LayoutDashboard, Sprout, Users, Settings, LogOut, Waves, Bell, Brain, MessageCircle, Cpu, Radio } from 'lucide-react';
 
 export const Layout: React.FC = () => {
     const navigate = useNavigate();
@@ -25,20 +25,27 @@ export const Layout: React.FC = () => {
     const user = getUser();
     const role = user.role || 'farmer';
 
-    const menuItems = [
-        { path: '/', icon: <LayoutDashboard size={20} />, label: 'Tổng quan' },
-        { path: '/farms', icon: <Sprout size={20} />, label: 'Trang trại' },
-        { path: '/alerts', icon: <Bell size={20} />, label: 'Cảnh báo' },
-        { path: '/analysis', icon: <Brain size={20} />, label: 'Phân tích' },
-        ...(role === 'admin' ? [{ path: '/users', icon: <Users size={20} />, label: 'Người dùng' }] : []),
-        { path: '/settings', icon: <Settings size={20} />, label: 'Cấu hình' },
+    const menuItems = role === 'admin' ? [
+        { path: '/dashboard/admin/stations', icon: <Radio size={20} />, label: 'Quản lý Trạm' },
+        { path: '/dashboard/admin/iot', icon: <Cpu size={20} />, label: 'Thiết bị IoT' },
+        { path: '/dashboard/users', icon: <Users size={20} />, label: 'Người dùng' },
+        { path: '/dashboard/analysis', icon: <Brain size={20} />, label: 'Phân tích' },
+        { path: '/dashboard/chat', icon: <MessageCircle size={20} />, label: 'Trợ lý AI' },
+        { path: '/dashboard/settings', icon: <Settings size={20} />, label: 'Cấu hình' },
+    ] : [
+        { path: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Tổng quan' },
+        { path: '/dashboard/farms', icon: <Sprout size={20} />, label: 'Trang trại' },
+        { path: '/dashboard/alerts', icon: <Bell size={20} />, label: 'Cảnh báo' },
+        { path: '/dashboard/analysis', icon: <Brain size={20} />, label: 'Phân tích' },
+        { path: '/dashboard/chat', icon: <MessageCircle size={20} />, label: 'Trợ lý AI' },
+        { path: '/dashboard/settings', icon: <Settings size={20} />, label: 'Cấu hình' },
     ];
 
     return (
         <div className="app-container">
             <aside className="sidebar">
-                <div className="logo">
-                    <Waves size={32} color="#3b82f6" />
+                <div className="logo" style={{ background: 'linear-gradient(135deg, var(--primary-green) 0%, var(--accent-teal) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800 }}>
+                    <Waves size={32} color="var(--primary-green)" style={{ marginRight: '10px' }} />
                     Mekong AI
                 </div>
 

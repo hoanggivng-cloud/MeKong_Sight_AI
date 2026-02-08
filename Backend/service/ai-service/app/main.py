@@ -1,8 +1,13 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import google.generativeai as genai
+from fastapi import UploadFile, File, Form
+import io
+from PIL import Image
 
 load_dotenv()
 import pandas as pd
@@ -11,14 +16,48 @@ from datetime import datetime, timedelta
 
 app = FastAPI(title="Mekong Sight AI Service")
 
+# Cấu hình CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Trong production nên giới hạn lại
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Cấu hình Supabase
 url: str = os.environ.get("SUPABASE_URL", "")
 key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 supabase: Client = create_client(url, key)
 
+# Cấu hình Gemini
+GEMINI_API_KEY = "AIzaSyAyiE2S8DYYO2Sp78dG58OyZj2LrEHSxsM"
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        # Sử dụng gemini-2.5-flash là phiên bản mới nhất, nhanh và mạnh mẽ
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        print("SUCCESS: Gemini AI initialized with model: gemini-2.5-flash")
+    except Exception as e:
+        print(f"ERROR: Failed to initialize Gemini: {str(e)}")
+        model = None
+else:
+    print("WARNING: GEMINI_API_KEY not found in environment variables")
+    model = None
+
+SYSTEM_PROMPT = """
+Bạn là một chuyên gia nông nghiệp hàng đầu tại Đồng bằng sông Cửu Long. 
+Nhiệm vụ của bạn là hỗ trợ nông dân phân tích hình ảnh về tôm và lúa.
+1. Nếu thấy dấu hiệu bệnh (đốm trắng, đầu vàng, hoại tử gan tụy trên tôm; đạo ôn, bạc lá, rầy nâu trên lúa...), hãy gọi tên bệnh và giải thích nguyên nhân.
+2. Đưa ra hướng xử lý thực tế, ưu tiên biện pháp bền vững, hữu cơ hoặc sử dụng chế phẩm sinh học.
+3. Luôn dùng ngôn ngữ gần gũi, lễ phép, chân chất với nông dân (gọi 'Bà con', 'Tôi').
+4. Nếu ảnh mờ hoặc không đủ dữ kiện, hãy hướng dẫn bà con cách chụp lại rõ hơn (ví dụ: chụp cận cảnh lá lúa bị cháy, hoặc chụp con tôm trên khay).
+5. Nếu không phải ảnh nông nghiệp, hãy nhẹ nhàng từ chối và nhắc bà con đây là trợ lý chuyên về Tôm - Lúa.
+"""
+
 # --- NGƯỠNG SINH HỌC THIẾT YẾU (Core Knowledge Base) ---
 BIOLOGICAL_THRESHOLDS = {
-    "shrimp_rice": { # Mô hình luân canh
+    "shrimp_rice": { 
         "shrimp_phase": {"min_salinity": 5, "max_salinity": 35, "ideal_ph": [7.0, 9.0]},
         "rice_phase": {"critical_salinity": 2.0, "safe_sowing": 0.5, "red_alert": 3.0}
     },
@@ -97,6 +136,36 @@ async def get_analysis_history(farm_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/ai/chat")
+async def chat_with_image(
+    message: str = Form(...),
+    image: UploadFile = File(None)
+):
+    """
+    Chat với Gemini sử dụng hình ảnh (tùy chọn) để dự đoán/phân tích
+    """
+    try:
+        if not GEMINI_API_KEY:
+            return {"success": False, "message": "Gemini API Key is not configured"}
+
+        content = [SYSTEM_PROMPT, message]
+        
+        if image:
+            image_data = await image.read()
+            img = Image.open(io.BytesIO(image_data))
+            content.append(img)
+            
+        response = model.generate_content(content)
+        
+        return {
+            "success": True, 
+            "reply": response.text,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"Gemini Chat Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 async def process_analysis(farm_id: str, analysis_type: str):
     try:
         # 1. Lấy thông tin farm để biết loại hình canh tác
@@ -169,4 +238,6 @@ async def process_analysis(farm_id: str, analysis_type: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Sử dụng reload=True để tự động cập nhật code khi sửa file
+    # Chỉ định app_dir="app" vì main.py nằm trong thư mục app/
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, app_dir="app")

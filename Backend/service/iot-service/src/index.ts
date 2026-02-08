@@ -17,6 +17,8 @@ fastify.get('/health', async (request, reply) => {
 // Sensor ingestion route
 fastify.post('/api/iot/ingest', (req, res) => iotController.handleReading(req, res));
 fastify.get('/api/iot/readings', (req, res) => iotController.getLatestReadings(req, res));
+fastify.get('/api/iot/devices', (req, res) => iotController.getDevices(req, res));
+fastify.post('/api/iot/devices', (req, res) => iotController.registerDevice(req, res));
 
 const start = async () => {
     try {
